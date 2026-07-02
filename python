@@ -1,0 +1,475 @@
+""" 
+
+To-File naming system - Logic Demo (no APIs or credentials) 
+
+ 
+
+What this code is: 
+
+A siimulation of the document-filing system. No real API calls to Claude, QuickBase, or Microsoft.  
+
+Everything that makes the filing decisions (naming and folder placement) is done in this code. 
+
+ 
+
+How to run: python document_filing_bot_demo.py 
+
+ 
+
+What the Demo shows: Five sample documents that go through every path the filing system can take. 
+
+     1. Clean bill w/ project number present --> filed 
+
+     2. Handrwitten receipt, amount unclear --> review (gate A) 
+
+     3. bill, no number but address matches a project --> filed 
+
+     4. bill, project number matched two records --> review (gate B) 
+
+     5. bill, nothing to match on --> review (gate B) 
+
+ 
+
+""" 
+
+ 
+
+import json 
+
+import datetime 
+
+ 
+
+#CONFIG 
+
+ 
+
+NAMING_CONFIDENCE_THRESHOLD = 0.9 #higher threshold in the beginning to prevent accidentally filing documnents 
+
+REQUIRED_NAMING_FIELDS = ["vendor_name", "document_number", "paid"] 
+
+ 
+
+#STAND-IN DATA 
+
+ 
+
+# In the real system this information comes from live APIs. Here, it is hardcoded for the demo. 
+
+ 
+
+# Stands in for the QuickBase Projects table 
+
+# Note: project "2000" appears twice to simulate a duplicate ambigious record for the sorting gate to catch. 
+
+PROJECTS_DATABASE = [{"number": "1042", "address": "12 Oak Street", "folder": "folder_id_1042"}, 
+
+                     {"number": "1055", "address": "88 Harbor Rd", "folder": "folder_id_1055"}, 
+
+                     {"number": "2000", "address": "5 First Ave", "folder": "folder_id_2000a"}, 
+
+                     {"number": "2000", "address": "5 First Ave Unit B", "folder": "folder_id_2000b"}] 
+
+ 
+
+# Stands in for the files in the SharePoint "To File" folder. 
+
+# Each sample bundles the "file" with the fields Claude would extract from it to demonstrate logic w/o reading a PDF 
+
+# IMPORTANT: The status of 'paid' should be defaulted to false, never None  
+
+ 
+
+SAMPLE_DOCUMENTS = [{"name": "scan_001.pdf", "extracted": {"document_type": "bill", "is_handwritten": False, "document_date": "2026-06-15", 
+
+                                                           "vendor_name": "Lorco Petroleum Services", "document_number": "2341042",  
+
+                                                           "paid": True, "project_number": "1042", "project_address": None,  
+
+                                                           "field_confidence": {"document_date": 0.97,"vendor_name": 0.98, "document_number": 0.97,  
+
+                                                                                "paid": 0.96, "project_address": 0.99}, 
+
+                                                           },  
+
+                    },  
+
+                    {"name": "scan_002.pdf", "extracted": {"document_type": "receipt", "is_handwritten": True,  
+
+                                                            "document_date": "2026-06-18", "vendor_name": "Home Depot", "document_number": "234567", 
+
+                                                            "paid": False, "project_number": "1042", "project_address": None,  
+
+                                                            "field_confidence": {"document_date": 0.92,"vendor_name": 0.95, "document_number": 0.94,  
+
+                                                                                 "paid": 0.55, "project_address": 0.98}, 
+
+                                                           },  
+
+                    },  
+
+                    {"name": "scan_003.pdf", "extracted": {"document_type": "bill", "is_handwritten": False,  
+
+                                                           "document_date": "2026-06-20", "vendor_name": "Not Renova", "document_number": "5573",  
+
+                                                           "paid": False, "project_number": None, "project_address": "88 Harbor Rd",  
+
+                                                           "field_confidence": {"document_date": 0.94, "vendor_name": 0.95, "document_number": 0.97,  
+
+                                                                                "paid": 0.94,"project_address": 0.93}, 
+
+                                                           }, 
+
+                    }, 
+
+                    {"name": "scan_004.pdf", "extracted": {"document_type": "bill", "is_handwritten": False,  
+
+                                                           "document_date": "2026-06-21", "vendor_name": "Lauer", "document_number": "2341120",  
+
+                                                           "paid": False, "project_number": "2000", "project_address": None,  
+
+                                                           "field_confidence": {"document_date": 0.95, "vendor_name": 0.96, "document_number": 0.95, 
+
+                                                                                "paid": 0.90, "project_number": 0.97}, 
+
+                                                           }, 
+
+                         
+
+                    }, 
+
+                    {"name": "scan_005.pdf", "extracted": {"document_type": "bill", "is_handwritten": False,  
+
+                                                           "document_date": "2026-06-22", "vendor_name": "Ocean Water", "document_number": "567477",  
+
+                                                           "paid": True, "project_number": None, "project_address": "999 Nowhere Ln", 
+
+                                                           "field_confidence": {"document_date": 0.96, "vendor_name": 0.97, "document_number": 0.93,  
+
+                                                                                "paid": 0.98, "project_number": 0.80}, 
+
+                                                           }, 
+
+                    }, 
+
+] 
+
+ 
+
+# MOCKED API CALLS  
+
+# Each of these replaces an API call. The real code is shown in the comment above the mock. 
+
+ 
+
+def list_to_file_documents(): 
+
+    # MICROSOFT GRAPH WOULD GO HERE 
+
+    # token = get_graph_token() 
+
+    # return list_to_file_documents(token)  
+
+    # GET .../drive/root:/To File:/children 
+
+     
+
+    return SAMPLE_DOCUMENTS 
+
+ 
+
+def extract_fields(document): 
+
+    # CLAUDE (ANTHROPIC API) WOULD GO HERE 
+
+    # pdf_bytes = download_document(token, document["id"])  
+
+    # Graph download 
+
+    # fields = client.messages.create(...document + extraction prompt...) 
+
+    # return json.loads(fields) 
+
+    # Claud returns the JSON shown below 
+
+     
+
+    return document["extracted"] 
+
+ 
+
+# Hardcode Renova's address into the code for future reference. 
+
+COMPANY_ADDRESSES = [ 
+
+    "3417 Sunset Ave, Ocean, NJ" 
+
+    "3417 Sunset Ave, Ocean, NJ 07712" 
+
+    "3417 Sunset Avenue, Ocean, NJ" 
+
+    "3417 Sunset Avenue, Ocean, NJ 07712" 
+
+] 
+
+ 
+
+def _normalize(s): 
+
+    return "".join(c for c in s.lower() if c.isalnum() or c == " ").split() 
+
+ 
+
+def _is_company_address(addr): 
+
+    a = " ".join(_normalize(addr)) 
+
+    for company in COMPANY_ADDRESSES: 
+
+        c = " ".join(_normalize(company)) 
+
+        if c in a or a in c:                    # loose match, not exact 
+
+            return True   
+
+    return False 
+
+ 
+
+def clean_project_address(fields): 
+
+    addr = fields.get("project_address") 
+
+    if addr and _is_company_address(addr): 
+
+        fields["project_address"] = None        # it was RENOVA's address, not a project's 
+
+    return fields 
+
+ 
+
+def query_projects_by_address(project_address): 
+
+    # QUICKBASE API CALL WOULD GO HERE 
+
+    # where = "{7.CT." + address + "}"  
+
+    # field 7 = address, CT = contains 
+
+    # return quickbase_query(where, select_fields)  
+
+    # POST /records/query 
+
+     
+
+    a = project_address.lower() 
+
+     
+
+    return [p for p in PROJECTS_DATABASE  
+
+            if a in p["address"].lower() or p["address"].lower() in a] 
+
+             
+
+def query_projects_by_number(project_number):  
+
+    # QUICKBASE API CALL WOULD GO HERE   
+
+    # where = "{6.EX.'" + project_number + "'}"        
+
+    # field 6 = project number  
+
+    # return quickbase_query(where, select_fields)      
+
+    # POST /records/query   
+
+     
+
+    return [p for p in PROJECTS_DATABASE if p["number"] == project_number] 
+
+             
+
+def move_and_rename(document, new_name, target_folder): 
+
+    # MICROSOFT GRAPH WOULD GO HERE 
+
+    # PATCH .../drive/items/{id} with {"name": new_name, "parentReference": {"id": target_folder}} 
+
+     
+
+    print(f" FILE -> '{new_name}' into {target_folder}") 
+
+     
+
+def move_to_review(document, reasons): 
+
+    # MICROSOFT GRAPH WOULD GO HERE 
+
+    # PATCH .../drive/items/{id} with {"parentReference": {"id": review_folder}} 
+
+     
+
+    print(f" REVIEW ({'; '.join(reasons)})") 
+
+     
+
+# THE REAL DECISION LOGIC (identical to full version) 
+
+ 
+
+def passes_naming_gate(fields): 
+
+    # Gate A: were the fields the filename is based on read confidently enough? 
+
+     
+
+    conf = fields.get("field_confidence", {}) 
+
+    for name in REQUIRED_NAMING_FIELDS: 
+
+        if conf.get(name, 0) < NAMING_CONFIDENCE_THRESHOLD: 
+
+            return False, f"low confidence on '{name}'" 
+
+    return True, "" 
+
+ 
+
+def find_project(fields): 
+
+    # Gate B: try to tie this document to exactly one project. 
+
+     
+
+    # 1. Prefer an exact match on a printed project number 
+
+    if fields.get("project_number"): 
+
+        rows = query_projects_by_number(fields["project_number"]) 
+
+        if len(rows) == 1: 
+
+            return {"status": "one", "project":rows[0]} 
+
+        if len(rows) > 1: 
+
+            return {"status": "many", "reason": f"project #{fields['project_number']} matched {len(rows)} records"} 
+
+    # 2. Otherwise try to match on the job-site address 
+
+    if fields.get("project_address"): 
+
+        rows = query_projects_by_address(fields["project_address"]) 
+
+        if len(rows) == 1: 
+
+            return {"status": "one", "project":rows[0]} 
+
+        if len(rows) > 1: 
+
+            return {"status": "many", "reason": f"address '{fields['project_address']}' matched {len(rows)} projects"} 
+
+         
+
+    return {"status": "none", "reason": "no project number or address match"} 
+
+ 
+
+def build_filename(fields, project): 
+
+    # Build a filename from the naming rules (placeholder rules here following billing naming conventions) 
+
+    vendor = (fields.get("vendor_name") or "Unknown").replace(" ", " ") 
+
+    doc_num = (fields.get("document_number") or "Unknown").replace(" ", "") 
+
+    paid = "PAID" if fields.get("paid") else "" 
+
+    doctype = fields.get("document_type") or "doc" 
+
+    return f"{doctype}-{vendor} {doc_num} {paid}.pdf" 
+
+ 
+
+# MAIN LOOP (near identical to full version) 
+
+def main(): 
+
+    print("Document Filing Bot - demo (no APIs)\n" + "=" * 52) 
+
+     
+
+    documents = list_to_file_documents() 
+
+    results = {"filed":0, "review":0} 
+
+     
+
+    for document in documents: 
+
+        print(f"\n[{document['name']}]") 
+
+        fields = extract_fields(document) 
+
+         
+
+        # Gate A - naming confidence 
+
+        ok_a, reason_a = passes_naming_gate(fields) 
+
+        # Gate B - exactly one project match 
+
+        project_result = find_project(fields) 
+
+        ok_b = project_result["status"] == "one" 
+
+         
+
+        if ok_a and ok_b: 
+
+            new_name = build_filename(fields, project_result["project"]) 
+
+            move_and_rename(document, new_name, project_result["project"]["folder"]) 
+
+            results["filed"] += 1 
+
+        else: 
+
+            reasons = [] 
+
+            if not ok_a: 
+
+                reasons.append(f"Gate A: {reason_a}") 
+
+            if not ok_b: 
+
+                reasons.append(f"Gate B: {project_result.get('reason', project_result['status'])}") 
+
+            move_to_review(document, reasons) 
+
+            results["review"] += 1 
+
+ 
+
+    print("\n" + "=" * 52) 
+
+    print(f"Summary:  {results['filed']} filed automatically, {results['review']} sent to Review.") 
+
+    print("(In the real system, 'Review' means a human gives it a quick look.)") 
+
+ 
+
+ 
+
+if __name__ == "__main__": 
+
+    main() 
+
+                 
+
+     
+
+     
+
+ 
