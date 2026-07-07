@@ -384,11 +384,11 @@ def build_filename(fields, project):
 
     doc_num = (fields.get("document_number") or "Unknown").replace(" ", "") 
 
-    paid = "PAID" if fields.get("paid") else "" 
+    paid = " PAID" if fields.get("paid") else "" 
 
     doctype = fields.get("document_type") or "doc" 
 
-    return f"{doctype}-{vendor} {doc_num} {paid}.pdf" 
+    return f"{doctype}-{vendor} {doc_num}{paid}.pdf" 
 
  
 
