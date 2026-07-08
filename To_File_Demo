@@ -388,7 +388,7 @@ def build_filename(fields, project):
 
     doctype = fields.get("document_type") or "doc" 
 
-    return f"{doctype}-{vendor} {doc_num}{paid}.pdf" 
+    return f"{doctype} - {vendor} {doc_num}{paid}.pdf" 
 
  
 
