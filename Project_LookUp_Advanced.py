@@ -186,7 +186,7 @@ def query_projects_by_sig_and_date (project_number):
 
     # POST /records/query   
 
-     if signature 
+     
 
      [p for p in PROJECTS_DATABASE if p["number"] == project_number] 
 
@@ -210,7 +210,7 @@ def verify_employee_on_project(employee_name=None, project_number=None, document
     # Case 1: All three fields present
     if employee_name and project_number and document_date:
         # Search for tasks/comments by this person on this project
-        tasks = quickbase_search(employee_name=employee_name, project_id=project_number)
+        tasks = "a" # quickbase_search(employee_name=employee_name, project_id=project_number)
         
         # Check if any task/comment is on document date
         for task in tasks:
