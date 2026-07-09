@@ -20,14 +20,6 @@ import datetime
 NAMING_CONFIDENCE_THRESHOLD = 0.9 #higher threshold in the beginning to prevent accidentally filing documnents 
 
 REQUIRED_NAMING_FIELDS = ["vendor_name", "document_number", "paid"] 
- 
-PROJECTS_DATABASE = [{"number": "1042", "address": "12 Oak Street", "folder": "folder_id_1042"}, 
-
-                     {"number": "1055", "address": "88 Harbor Rd", "folder": "folder_id_1055"}, 
-
-                     {"number": "2000", "address": "5 First Ave", "folder": "folder_id_2000a"}, 
-
-                     {"number": "2000", "address": "5 First Ave Unit B", "folder": "folder_id_2000b"}] 
 
 def extract_fields(document): 
 
@@ -112,46 +104,17 @@ def clean_project_address(fields):
     return fields 
 
  
+def find_projects_quickbase(fields):
+    """
+    Only search QuickBase sparingly, utilizing the fields that the Claude API found
+    """
+    relevant_projects = []
 
-def query_projects_by_address(project_address): 
+    # First question: If document has project number, fetch that project
+    if fields.get("project_number"):
+        # where = "{6.EX.'" + fields["project_number"] + "'}"
+        relevant_projects = quickbase_query(...)    # <- 1 project or 0
 
-    # QUICKBASE API CALL WOULD GO HERE 
-
-    # where = "{7.CT." + address + "}"  
-
-    # field 7 = address, CT = contains 
-
-    # return quickbase_query(where, select_fields)  
-
-    # POST /records/query 
-
-     
-
-    a = project_address.lower() 
-
-     
-
-    return [p for p in PROJECTS_DATABASE  
-
-            if a in p["address"].lower() or p["address"].lower() in a] 
-
-             
-
-def query_projects_by_number(project_number):  
-
-    # QUICKBASE API CALL WOULD GO HERE   
-
-    # where = "{6.EX.'" + project_number + "'}"        
-
-    # field 6 = project number  
-
-    # return quickbase_query(where, select_fields)      
-
-    # POST /records/query   
-
-     
-
-    return [p for p in PROJECTS_DATABASE if p["number"] == project_number] 
 
 def find_project_number(address=None, project_number=None):
     """
@@ -172,23 +135,6 @@ def find_project_number(address=None, project_number=None):
       
     return None # Can't determine project number
     
-
-
-def query_projects_by_sig_and_date (project_number):  
-
-    # QUICKBASE API CALL WOULD GO HERE   
-
-    # where = "{6.EX.'" + project_number + "'}"        
-
-    # field 6 = project number  
-
-    # return quickbase_query(where, select_fields)      
-
-    # POST /records/query   
-
-     
-
-     [p for p in PROJECTS_DATABASE if p["number"] == project_number] 
 
 def move_and_rename(document, new_name, target_folder): 
 
@@ -221,6 +167,9 @@ def verify_employee_on_project(employee_name=None, project_number=None, document
             if task_date == doc_date:
                 return True
         return False
+    # Case 2: Only employee name and the date signed are present
+    if employee_name and document_date:
+        # Search for comments on a project 
     
 
 # THE REAL DECISION LOGIC (identical to full version) 
